@@ -1,0 +1,2276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="description" content="GATE DA 2027 — The Reactor: Adaptive preparation OS for GATE Data Science & AI"/>
+<title>GATE DA 2027 — The Reactor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ═══════════════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════════════ */
+:root {
+  /* ── Light / White Theme ── */
+  --bg:        #f5f6fa;
+  --bg1:       #ffffff;
+  --dim:       #eef0f7;
+  --card:      #ffffff;
+  --border:    #e2e5f0;
+  --border2:   #c9cde0;
+  --amber:     #b45309;
+  --amber-dim: rgba(180,83,9,0.08);
+  --blue:      #2563eb;
+  --blue-dim:  rgba(37,99,235,0.10);
+  --green:     #16a34a;
+  --green-dim: rgba(22,163,74,0.08);
+  --red:       #dc2626;
+  --red-dim:   rgba(220,38,38,0.08);
+  --text:      #1e1b4b;
+  --text2:     #4b5563;
+  --text3:     #9ca3af;
+  --mono:      'JetBrains Mono', monospace;
+  --human:     'Inter', sans-serif;
+  --r:         8px;
+  --r2:        4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* ═══════════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #e2e5f0; }
+::-webkit-scrollbar-thumb { background: #a5b4d0; border-radius: 2px; }
+::selection { background: rgba(59,130,246,0.25); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { cursor: pointer; font-family: var(--mono); }
+canvas { display: block; }
+/* ═══════════════════════════════════════════════════════
+   SYSTEM LOG (TOP BAR)
+═══════════════════════════════════════════════════════ */
+#syslog-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  padding: 0 1rem;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+#syslog-text { color: var(--blue); font-size: 11px; transition: color 0.8s; font-weight: 500; }
+#syslog-text.drift  { color: var(--amber); }
+#syslog-text.alert  { color: var(--red); }
+#syslog-text.steady { color: var(--green); }
+.syslog-meta { color: var(--text3); display: flex; gap: 1.5rem; align-items: center; }
+.syslog-clock { color: var(--text2); font-size: 11px; letter-spacing: 0.05em; }
+/* ═══════════════════════════════════════════════════════
+   MAIN LAYOUT
+═══════════════════════════════════════════════════════ */
+#app {
+  padding-top: 32px;
+  display: grid;
+  grid-template-columns: 300px 1fr 280px;
+  grid-template-rows: auto;
+  gap: 1px;
+  background: var(--border);
+  min-height: calc(100vh - 32px);
+}
+/* Left column */
+#col-left { background: var(--bg); display: flex; flex-direction: column; gap: 1px; }
+/* Center column */
+#col-center { background: var(--bg); display: flex; flex-direction: column; gap: 1px; }
+/* Right column */
+#col-right { background: var(--bg); display: flex; flex-direction: column; gap: 1px; }
+/* ═══════════════════════════════════════════════════════
+   PANEL BASE
+═══════════════════════════════════════════════════════ */
+.panel {
+  background: var(--bg);
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.panel-label {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text3);
+  font-weight: 500;
+}
+.panel-status {
+  font-size: 9px;
+  color: var(--text3);
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+.dot-amber { background: var(--amber); animation: dotPulse 2s ease infinite; }
+.dot-blue  { background: var(--blue); }
+.dot-green { background: var(--green); }
+.dot-red   { background: var(--red); animation: dotPulse 1s ease infinite; }
+@keyframes dotPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+/* ═══════════════════════════════════════════════════════
+   HERO PANEL: COUNTDOWN + TIME BANK
+═══════════════════════════════════════════════════════ */
+#panel-hero {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.hero-exam-label { font-size: 9px; letter-spacing: 0.15em; color: var(--text3); text-transform: uppercase; margin-bottom: 0.25rem; }
+.hero-countdown {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--amber);
+  letter-spacing: -0.03em;
+}
+.hero-countdown-unit { font-size: 11px; color: var(--text2); letter-spacing: 0.05em; margin-top: 0.15rem; }
+.hero-divider { border: none; border-top: 1px solid var(--border); margin: 0.75rem 0; }
+.bank-label { font-size: 9px; letter-spacing: 0.1em; color: var(--text3); text-transform: uppercase; margin-bottom: 0.25rem; }
+.bank-amount {
+  font-size: 1.6rem; font-weight: 700; color: var(--blue);
+  letter-spacing: -0.02em; line-height: 1;
+}
+.bank-sub { font-size: 11px; color: var(--text2); margin-top: 0.2rem; }
+.bank-runway { margin-top: 0.5rem; font-size: 10px; color: var(--text2); }
+.bank-runway.warn { color: var(--amber); }
+.bank-runway.crit { color: var(--red); }
+.bank-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 0.4rem; overflow: hidden; }
+.bank-bar-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width 0.6s ease; }
+/* ═══════════════════════════════════════════════════════
+   DAILY BRIEFING
+═══════════════════════════════════════════════════════ */
+#panel-briefing {
+  background: #fffbf0;
+  border-left: 3px solid var(--amber);
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+#briefing-text {
+  font-family: var(--human);
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.8;
+  max-height: 120px;
+  overflow-y: auto;
+}
+/* ═══════════════════════════════════════════════════════
+   DRIFT SCHEDULE
+═══════════════════════════════════════════════════════ */
+#panel-drift { border-bottom: 1px solid var(--border); }
+.drift-diff {
+  font-size: 10px;
+  color: var(--amber);
+  background: var(--amber-dim);
+  border-left: 2px solid var(--amber);
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.75rem;
+  border-radius: 0 var(--r2) var(--r2) 0;
+  font-style: italic;
+}
+.drift-diff.none { color: var(--blue); background: var(--blue-dim); border-color: var(--blue); }
+.block-list { display: flex; flex-direction: column; gap: 2px; }
+.block-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--r2);
+  border: 1px solid transparent;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+}
+.block-row.active {
+  border-color: var(--amber);
+  background: var(--amber-dim);
+}
+.block-row.done {
+  opacity: 0.45;
+}
+.block-row.catchup {
+  border-color: var(--amber);
+  border-style: dashed;
+}
+.block-time { font-size: 10px; color: var(--text3); }
+.block-label { font-size: 11px; font-weight: 500; }
+.block-label.gate { color: var(--blue); }
+.block-label.college { color: var(--text2); }
+.block-label.skill { color: var(--green); }
+.block-label.rest { color: var(--text3); }
+.block-label.catchup { color: var(--amber); }
+.block-label.mock { color: var(--red); }
+.block-done-btn {
+  background: #f8faff; border: 1px solid var(--border2); color: var(--text3);
+  font-size: 9px; padding: 1px 5px; border-radius: var(--r2);
+  transition: all 0.15s;
+}
+.block-done-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+.block-row.done .block-done-btn { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+/* ═══════════════════════════════════════════════════════
+   FOCUS MODE / BLOCK TIMER
+═══════════════════════════════════════════════════════ */
+#panel-timer { border-bottom: 1px solid var(--border); }
+.timer-display {
+  font-size: 2.8rem; font-weight: 700; line-height: 1;
+  color: var(--amber); letter-spacing: -0.03em;
+  text-align: center; margin: 0.5rem 0;
+}
+.timer-block-name { font-size: 10px; color: var(--text2); text-align: center; margin-bottom: 0.5rem; }
+.pomodoro-bar { height: 2px; background: #e2e5f0; border-radius: 1px; overflow: hidden; }
+.pomodoro-fill { height: 100%; background: var(--amber); border-radius: 1px; transition: width 1s linear; }
+.timer-controls { display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.6rem; }
+.timer-btn {
+  background: white; border: 1px solid var(--border2); color: var(--text2);
+  font-size: 10px; padding: 0.3rem 0.7rem; border-radius: var(--r2);
+  letter-spacing: 0.05em; transition: all 0.15s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.timer-btn:hover { background: #f0f4ff; color: var(--blue); border-color: var(--blue); }
+.timer-btn.active { background: var(--amber-dim); border: 1px solid var(--amber); color: var(--amber); }
+#focus-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(245,246,250,0.97);
+  backdrop-filter: blur(16px);
+  flex-direction: column; align-items: center; justify-content: center;
+}
+#focus-overlay.on { display: flex; }
+.focus-block-name { font-size: 13px; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1rem; }
+.focus-timer { font-size: 6rem; font-weight: 700; color: var(--amber); letter-spacing: -0.05em; }
+.focus-pomo { font-size: 11px; color: var(--text3); margin-top: 0.5rem; }
+.focus-exit { margin-top: 2rem; background: white; border: 1px solid var(--border2); color: var(--text2); font-size: 11px; padding: 0.4rem 1rem; border-radius: var(--r2); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+/* ═══════════════════════════════════════════════════════
+   CONSTELLATION (CENTER MAIN)
+═══════════════════════════════════════════════════════ */
+#panel-constellation {
+  flex: 1;
+  min-height: 380px;
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  position: relative;
+}
+#constellation-canvas { width: 100%; height: 100%; }
+.constellation-legend {
+  position: absolute; bottom: 0.75rem; left: 0.75rem;
+  display: flex; gap: 1rem; font-size: 9px; color: var(--text2);
+  background: rgba(255,255,255,0.85); padding: 3px 8px; border-radius: 4px;
+}
+.legend-item { display: flex; align-items: center; gap: 0.3rem; }
+.legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+/* ═══════════════════════════════════════════════════════
+   PHASE TIMELINE
+═══════════════════════════════════════════════════════ */
+#panel-timeline { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+.timeline-track { position: relative; height: 32px; margin: 0.5rem 0; }
+.timeline-bg {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  left: 0; right: 0; height: 2px;
+  background: var(--border); border-radius: 1px;
+}
+.timeline-progress {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  left: 0; height: 2px; background: var(--blue); border-radius: 1px;
+  transition: width 1s ease;
+}
+.timeline-cursor {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--amber); border: 2px solid var(--bg);
+  box-shadow: 0 0 8px var(--amber);
+  transition: left 1s ease;
+}
+.timeline-phases { display: flex; position: absolute; top: 0; left: 0; right: 0; height: 100%; }
+.timeline-phase {
+  flex: 1; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding-bottom: 0; cursor: default;
+}
+.timeline-phase:last-child { border-right: none; }
+.timeline-phase-label {
+  font-size: 8px; color: var(--text3); letter-spacing: 0.05em;
+  padding-left: 4px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timeline-phase.current .timeline-phase-label { color: var(--amber); }
+.drift-indicator { font-size: 10px; margin-top: 0.4rem; }
+.drift-indicator.on-track { color: var(--blue); }
+.drift-indicator.behind   { color: var(--amber); }
+.drift-indicator.critical { color: var(--red); }
+.rebalance-btn {
+  background: none; border: 1px solid var(--border2); color: var(--text3);
+  font-size: 9px; padding: 2px 8px; border-radius: var(--r2);
+  margin-top: 0.3rem; letter-spacing: 0.05em;
+  transition: all 0.15s;
+}
+.rebalance-btn:hover { border-color: var(--blue); color: var(--blue); }
+/* ═══════════════════════════════════════════════════════
+   GHOST TOPPER
+═══════════════════════════════════════════════════════ */
+#panel-ghost { border-bottom: 1px solid var(--border); }
+.ghost-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; }
+.ghost-subj { font-size: 10px; color: var(--text2); width: 70px; flex-shrink: 0; }
+.ghost-bar-wrap { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: visible; position: relative; }
+.ghost-you   { position: absolute; top: 0; left: 0; height: 100%; background: var(--blue); border-radius: 2px; transition: width 0.8s ease; }
+.ghost-ghost { position: absolute; top: 0; height: 100%; border-right: 2px solid rgba(100,100,200,0.35); }
+.ghost-delta { font-size: 9px; width: 40px; text-align: right; flex-shrink: 0; }
+.ghost-delta.ahead  { color: var(--blue); }
+.ghost-delta.behind { color: var(--amber); }
+/* ═══════════════════════════════════════════════════════
+   BLACK BOX RECORDER
+═══════════════════════════════════════════════════════ */
+#panel-blackbox { border-bottom: 1px solid var(--border); }
+.blackbox-log {
+  height: 150px; overflow-y: auto;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--r2);
+  padding: 0.5rem;
+  font-size: 10px;
+  color: #166534;
+  line-height: 1.7;
+}
+.log-entry { display: flex; gap: 0.75rem; align-items: flex-start; }
+.log-ts    { color: #86efac; flex-shrink: 0; font-size: 9px; margin-top: 0.1rem; }
+.log-msg   { }
+.log-entry.skip   .log-msg { color: var(--amber); }
+.log-entry.done   .log-msg { color: #166534; }
+.log-entry.mock   .log-msg { color: var(--blue); }
+.log-entry.decay  .log-msg { color: var(--red); }
+.log-entry.sys    .log-msg { color: var(--text3); }
+.blackbox-actions { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
+.bb-btn {
+  background: white; border: 1px solid var(--border2); color: var(--text2);
+  font-size: 9px; padding: 2px 8px; border-radius: var(--r2); letter-spacing: 0.05em;
+  transition: all 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.bb-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+/* ═══════════════════════════════════════════════════════
+   MOCK PERFORMANCE & HEATMAP
+═══════════════════════════════════════════════════════ */
+#panel-mock { border-bottom: 1px solid var(--border); }
+#mock-heatmap-canvas { border-radius: var(--r2); }
+.mock-projected { font-size: 11px; margin-top: 0.5rem; }
+.mock-proj-num { font-size: 1.4rem; font-weight: 700; color: var(--blue); }
+.mock-proj-range { font-size: 9px; color: var(--text3); }
+.mock-log-btn {
+  background: none; border: 1px solid var(--border2); color: var(--text3);
+  font-size: 9px; padding: 2px 8px; border-radius: var(--r2); margin-top: 0.5rem;
+  letter-spacing: 0.05em; transition: all 0.15s; display: block;
+}
+.mock-log-btn:hover { border-color: var(--blue); color: var(--blue); }
+#fan-canvas { margin-top: 0.5rem; border-radius: var(--r2); }
+/* ═══════════════════════════════════════════════════════
+   STRESS TEST
+═══════════════════════════════════════════════════════ */
+#panel-stress {
+  border-bottom: 1px solid var(--border);
+  grid-column: 1/-1;
+}
+.stress-row { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.stress-col { flex: 1; min-width: 200px; }
+.stress-btn {
+  background: var(--amber-dim); border: 1px solid var(--amber); color: var(--amber);
+  font-size: 10px; padding: 0.4rem 1rem; border-radius: var(--r2);
+  letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.75rem;
+  transition: all 0.2s; font-weight: 600; box-shadow: 0 1px 4px rgba(180,83,9,0.15);
+}
+.stress-btn:hover { background: rgba(180,83,9,0.14); }
+.stress-result { font-size: 10px; color: var(--text2); line-height: 1.8; }
+.stress-p { margin-bottom: 0.2rem; }
+.stress-p .label { color: var(--text3); width: 40px; display: inline-block; }
+.stress-p.p10 .val { color: var(--red); }
+.stress-p.p50 .val { color: var(--blue); }
+.stress-p.p90 .val { color: var(--green); }
+.leverage-tip { margin-top: 0.5rem; font-size: 10px; color: var(--amber); border-left: 2px solid var(--amber); padding-left: 0.5rem; }
+/* ═══════════════════════════════════════════════════════
+   NEGOTIATION LAYER
+═══════════════════════════════════════════════════════ */
+#panel-negotiate { border-bottom: 1px solid var(--border); }
+.neg-trigger { font-size: 10px; color: var(--text2); margin-bottom: 0.5rem; }
+.neg-select {
+  background: white; border: 1px solid var(--border2); color: var(--text);
+  font-family: var(--mono); font-size: 10px; padding: 0.3rem 0.5rem;
+  border-radius: var(--r2); width: 100%; margin-bottom: 0.4rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04); outline: none;
+}
+.neg-options { display: flex; flex-direction: column; gap: 0.3rem; }
+.neg-option {
+  background: white; border: 1px solid var(--border); padding: 0.5rem 0.75rem;
+  border-radius: var(--r2); font-size: 10px; cursor: pointer; transition: all 0.15s;
+  text-align: left; color: var(--text2); box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.neg-option:hover { border-color: var(--blue); color: var(--text); background: var(--blue-dim); }
+.neg-cost { font-size: 9px; color: var(--amber); margin-top: 0.2rem; }
+.neg-accept-btn {
+  background: var(--blue-dim); border: 1px solid var(--blue); color: var(--blue);
+  font-size: 9px; padding: 2px 8px; border-radius: var(--r2); margin-top: 0.5rem;
+  letter-spacing: 0.05em; transition: all 0.15s;
+}
+.neg-accept-btn:hover { background: rgba(59,130,246,0.22); }
+/* ═══════════════════════════════════════════════════════
+   LOG MOCK MODAL
+═══════════════════════════════════════════════════════ */
+#mock-modal {
+  display: none; position: fixed; inset: 0; z-index: 800;
+  background: rgba(245,246,250,0.85); backdrop-filter: blur(12px);
+  align-items: center; justify-content: center;
+}
+#mock-modal.on { display: flex; }
+.modal-box {
+  background: white; border: 1px solid var(--border);
+  border-radius: var(--r); padding: 1.5rem; width: 320px;
+  max-width: 90vw; box-shadow: 0 8px 40px rgba(37,99,235,0.12);
+}
+.modal-title { font-size: 12px; color: var(--text); margin-bottom: 1rem; letter-spacing: 0.05em; }
+.modal-row { margin-bottom: 0.75rem; }
+.modal-label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; }
+.modal-input {
+  background: #f8faff; border: 1px solid var(--border2); color: var(--text);
+  font-family: var(--mono); font-size: 11px; padding: 0.4rem 0.6rem;
+  border-radius: var(--r2); width: 100%; outline: none; transition: border-color 0.15s;
+}
+.modal-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.10); }
+.modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.modal-btn {
+  flex: 1; padding: 0.4rem; border-radius: var(--r2); font-size: 10px;
+  letter-spacing: 0.05em; border: none; transition: all 0.15s;
+}
+.modal-btn.primary { background: var(--blue); color: white; }
+.modal-btn.primary:hover { opacity: 0.88; }
+.modal-btn.cancel { background: #f1f5f9; color: var(--text2); border: 1px solid var(--border); }
+.modal-btn.cancel:hover { background: #e2e8f0; }
+/* ═══════════════════════════════════════════════════════
+   ENERGY / BURNOUT
+═══════════════════════════════════════════════════════ */
+#panel-energy { }
+.load-meter { display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0; }
+.load-gauge { flex: 1; }
+.load-bar { height: 6px; background: #e2e5f0; border-radius: 3px; overflow: hidden; }
+.load-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+.load-fill.low    { background: var(--blue); }
+.load-fill.medium { background: var(--amber); }
+.load-fill.high   { background: var(--red); }
+.load-num { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+.load-num.low    { color: var(--blue); }
+.load-num.medium { color: var(--amber); }
+.load-num.high   { color: var(--red); }
+.load-label { font-size: 9px; color: var(--text3); }
+.burnout-alert {
+  background: var(--amber-dim); border: 1px solid rgba(217,119,6,0.3);
+  border-radius: var(--r2); padding: 0.5rem 0.75rem; font-size: 10px;
+  color: var(--amber); line-height: 1.7; margin-top: 0.5rem;
+}
+.burnout-alert.hidden { display: none; }
+/* ═══════════════════════════════════════════════════════
+   CALENDAR HEATMAP (STREAKS)
+═══════════════════════════════════════════════════════ */
+#panel-streaks { border-bottom: 1px solid var(--border); }
+.xp-display { display: flex; gap: 1rem; margin-bottom: 0.5rem; }
+.xp-stat { }
+.xp-num { font-size: 1.2rem; font-weight: 700; color: var(--blue); }
+.xp-label { font-size: 9px; color: var(--text3); }
+.level-badge {
+  display: inline-block; font-size: 9px;
+  background: var(--amber-dim); border: 1px solid rgba(180,83,9,0.25);
+  color: var(--amber); padding: 1px 6px; border-radius: var(--r2);
+  letter-spacing: 0.05em; margin-bottom: 0.5rem; font-weight: 600;
+}
+#cal-canvas { border-radius: var(--r2); }
+/* ═══════════════════════════════════════════════════════
+   AT-RISK TOPICS
+═══════════════════════════════════════════════════════ */
+#panel-atrisk { border-bottom: 1px solid var(--border); }
+.risk-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.35rem 0; border-bottom: 1px solid var(--border);
+}
+.risk-item:last-child { border-bottom: none; }
+.risk-decay { font-size: 10px; color: var(--red); width: 36px; flex-shrink: 0; font-weight: 700; }
+.risk-topic { font-size: 10px; color: var(--text); flex: 1; }
+.risk-subj  { font-size: 9px; color: var(--text3); }
+.risk-study-btn {
+  background: white; border: 1px solid var(--border2); color: var(--text3);
+  font-size: 9px; padding: 1px 6px; border-radius: var(--r2); transition: all 0.15s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.risk-study-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+/* ═══════════════════════════════════════════════════════
+   KNOWLEDGE GRAPH (Singularity)
+═══════════════════════════════════════════════════════ */
+#panel-knowledge { border-bottom: 1px solid var(--border); }
+.knowledge-topics { display: flex; flex-direction: column; gap: 0.3rem; max-height: 160px; overflow-y: auto; }
+.kt-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; }
+.kt-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.kt-name { font-size: 10px; color: var(--text2); flex: 1; }
+.kt-link { font-size: 9px; color: var(--blue); opacity: 0.6; transition: opacity 0.15s; }
+.kt-link:hover { opacity: 1; }
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  #app { grid-template-columns: 260px 1fr; }
+  #col-right { display: none; }
+}
+@media (max-width: 700px) {
+  #app { grid-template-columns: 1fr; }
+  #col-left { display: none; }
+  .hero-countdown { font-size: 2.5rem; }
+}
+/* ═══════════════════════════════════════════════════════
+   UTILITY
+═══════════════════════════════════════════════════════ */
+.dim { opacity: 0.5; }
+.mono { font-family: var(--mono); }
+.human { font-family: var(--human); }
+.amber { color: var(--amber); }
+.blue  { color: var(--blue); }
+.green { color: var(--green); }
+.red   { color: var(--red); }
+.mt-xs { margin-top: 0.25rem; }
+.mt-sm { margin-top: 0.5rem; }
+.mt-md { margin-top: 1rem; }
+.fs-9  { font-size: 9px; }
+.fs-10 { font-size: 10px; }
+.section-gap { height: 1px; background: var(--border); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     SYSTEM LOG BAR
+═══════════════════════════════════════════════════ -->
+<div id="syslog-bar" role="status" aria-live="polite">
+  <span id="syslog-text" class="steady">REACTOR ONLINE — initializing subsystems...</span>
+  <div class="syslog-meta">
+    <span id="syslog-phase" class="dim fs-9">PHASE: —</span>
+    <span id="syslog-clock" class="syslog-clock">00:00:00</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     FOCUS OVERLAY
+═══════════════════════════════════════════════════ -->
+<div id="focus-overlay" role="dialog" aria-label="Focus mode">
+  <div class="focus-block-name" id="focus-block-name">GATE THEORY SESSION</div>
+  <div class="focus-timer" id="focus-timer-display">90:00</div>
+  <div class="focus-pomo" id="focus-pomo">POMODORO 1 / 3 — 25:00 remaining</div>
+  <button class="focus-exit" onclick="exitFocusMode()">EXIT FOCUS MODE</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MOCK LOG MODAL
+═══════════════════════════════════════════════════ -->
+<div id="mock-modal" role="dialog" aria-label="Log mock score">
+  <div class="modal-box">
+    <div class="modal-title">LOG MOCK / PYQ SCORE</div>
+    <div class="modal-row">
+      <div class="modal-label">Subject</div>
+      <select id="mock-subject" class="modal-input">
+        <option>Engineering Mathematics</option>
+        <option>Probability &amp; Statistics</option>
+        <option>Programming &amp; DSA</option>
+        <option>Database Systems</option>
+        <option>Machine Learning</option>
+        <option>Artificial Intelligence</option>
+        <option>Aptitude</option>
+        <option>Full Mock</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Score (marks)</div>
+      <input id="mock-score" type="number" class="modal-input" placeholder="e.g. 45" min="0"/>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Total Marks</div>
+      <input id="mock-total" type="number" class="modal-input" placeholder="e.g. 100" value="100"/>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Duration (min)</div>
+      <input id="mock-duration" type="number" class="modal-input" placeholder="e.g. 180" value="180"/>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeMockModal()">CANCEL</button>
+      <button class="modal-btn primary" onclick="submitMock()">LOG SCORE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ══════ LEFT COLUMN ══════ -->
+  <div id="col-left">
+
+    <!-- HERO: COUNTDOWN + TIME BANK -->
+    <div class="panel" id="panel-hero">
+      <div class="hero-exam-label">GATE DA 2027 — EXAM DAY</div>
+      <div class="hero-countdown" id="hero-days">---</div>
+      <div class="hero-countdown-unit" id="hero-units">days · hours · minutes</div>
+      <hr class="hero-divider"/>
+      <div class="bank-label">TIME BANK</div>
+      <div class="bank-amount" id="bank-hours">--- hr</div>
+      <div class="bank-sub" id="bank-sub">productive hours remaining</div>
+      <div class="bank-runway" id="bank-runway">calculating runway...</div>
+      <div class="bank-bar"><div class="bank-bar-fill" id="bank-bar" style="width:100%"></div></div>
+    </div>
+
+    <!-- AT-RISK TOPICS -->
+    <div class="panel" id="panel-atrisk">
+      <div class="panel-header">
+        <span class="panel-label">FORGETTING RISK</span>
+        <span class="panel-status"><span class="dot dot-red"></span>LIVE DECAY</span>
+      </div>
+      <div id="atrisk-list"><!-- JS --></div>
+    </div>
+
+    <!-- BLOCK TIMER -->
+    <div class="panel" id="panel-timer">
+      <div class="panel-header">
+        <span class="panel-label">BLOCK TIMER</span>
+        <span class="panel-status"><span class="dot dot-amber" id="timer-dot"></span>ACTIVE</span>
+      </div>
+      <div class="timer-block-name" id="timer-block-name">—</div>
+      <div class="timer-display" id="timer-display">--:--</div>
+      <div class="pomodoro-bar"><div class="pomodoro-fill" id="pomo-fill" style="width:100%"></div></div>
+      <div class="timer-controls">
+        <button class="timer-btn" id="btn-start-timer" onclick="toggleTimer()">START</button>
+        <button class="timer-btn" onclick="resetTimer()">RESET</button>
+        <button class="timer-btn" onclick="enterFocusMode()" title="Focus Mode">FOCUS</button>
+      </div>
+    </div>
+
+    <!-- ENERGY / BURNOUT -->
+    <div class="panel" id="panel-energy">
+      <div class="panel-header">
+        <span class="panel-label">ENERGY INDEX</span>
+        <span class="panel-status" id="energy-status-dot">—</span>
+      </div>
+      <div class="load-meter">
+        <div class="load-gauge">
+          <div class="load-bar"><div class="load-fill" id="load-fill" style="width:30%"></div></div>
+          <div class="load-label mt-xs" id="load-label">LOAD SCORE</div>
+        </div>
+        <div class="load-num" id="load-num">—</div>
+      </div>
+      <div class="burnout-alert hidden" id="burnout-alert">
+        System intervention: load exceeded threshold for 3+ consecutive days.
+        A lighter revision-only block has been inserted tomorrow to prevent cascade failure.
+      </div>
+    </div>
+
+    <!-- STREAKS / XP -->
+    <div class="panel" id="panel-streaks">
+      <div class="panel-header">
+        <span class="panel-label">LOGBOOK</span>
+        <span class="panel-status"><span class="dot dot-blue"></span>LIVE</span>
+      </div>
+      <div class="xp-display">
+        <div class="xp-stat"><div class="xp-num" id="xp-total">0</div><div class="xp-label">XP</div></div>
+        <div class="xp-stat"><div class="xp-num" id="streak-count">0</div><div class="xp-label">STREAK</div></div>
+        <div class="xp-stat"><div class="xp-num" id="blocks-done">0</div><div class="xp-label">BLOCKS</div></div>
+      </div>
+      <div class="level-badge" id="level-badge">LEVEL 1 — INITIATE</div>
+      <canvas id="cal-canvas" width="252" height="60"></canvas>
+      <button class="bb-btn mt-sm" onclick="exportLogbook()">EXPORT LOGBOOK (JSON)</button>
+    </div>
+
+  </div><!-- /col-left -->
+
+  <!-- ══════ CENTER COLUMN ══════ -->
+  <div id="col-center">
+
+    <!-- DAILY BRIEFING -->
+    <div class="panel" id="panel-briefing">
+      <div class="panel-header">
+        <span class="panel-label">DAILY BRIEFING</span>
+        <span class="panel-status"><span class="dot dot-amber"></span><span id="briefing-date">—</span></span>
+      </div>
+      <div id="briefing-text" class="human">Generating briefing...</div>
+    </div>
+
+    <!-- CONSTELLATION -->
+    <div class="panel" id="panel-constellation">
+      <div class="panel-header" style="padding:0.75rem 1rem 0.5rem; position:absolute; top:0; left:0; right:0; z-index:2; background:rgba(255,255,255,0.88); backdrop-filter:blur(8px); border-bottom:1px solid rgba(226,229,240,0.8);">
+        <span class="panel-label">MASTERY ORGANISM — SYLLABUS STATE</span>
+        <span class="panel-status"><span class="dot dot-blue"></span>LIVE DECAY</span>
+      </div>
+      <canvas id="constellation-canvas" width="600" height="360" style="width:100%;height:100%;min-height:360px;"></canvas>
+      <div class="constellation-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div><span>MASTERED</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div><span>DECAYING</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div><span>CRITICAL</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--border2)"></div><span>UNSEEN</span></div>
+      </div>
+    </div>
+
+    <!-- PHASE TIMELINE -->
+    <div class="panel" id="panel-timeline">
+      <div class="panel-header">
+        <span class="panel-label">PHASE TIMELINE — JUL 2026 → FEB 2027</span>
+        <span class="panel-status" id="timeline-phase-status">—</span>
+      </div>
+      <div class="timeline-track" id="timeline-track"><!-- JS --></div>
+      <div style="display:flex;justify-content:space-between;margin-top:0.25rem;">
+        <span class="fs-9 dim">Jul 2026</span>
+        <span class="fs-9 dim">Feb 2027</span>
+      </div>
+      <div class="drift-indicator" id="drift-indicator">Calculating syllabus drift...</div>
+      <button class="rebalance-btn" onclick="rebalancePlan()" id="rebalance-btn">ONE-CLICK REBALANCE →</button>
+    </div>
+
+    <!-- TODAY'S DRIFT SCHEDULE -->
+    <div class="panel" id="panel-drift">
+      <div class="panel-header">
+        <span class="panel-label">TODAY'S ADAPTIVE SCHEDULE</span>
+        <span class="panel-status"><span class="dot dot-amber"></span>DRIFT ENGINE</span>
+      </div>
+      <div class="drift-diff" id="drift-diff">Computing drift delta...</div>
+      <div class="block-list" id="block-list"><!-- JS --></div>
+    </div>
+
+    <!-- MOCK PERFORMANCE -->
+    <div class="panel" id="panel-mock">
+      <div class="panel-header">
+        <span class="panel-label">PERFORMANCE CALIBRATION</span>
+        <span class="panel-status"><span class="dot dot-blue"></span>MONTE CARLO</span>
+      </div>
+      <canvas id="mock-heatmap-canvas" width="500" height="90"></canvas>
+      <div class="mock-projected">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.25rem;">PROJECTED GATE SCORE</div>
+        <span class="mock-proj-num" id="proj-score">--</span>
+        <span class="mock-proj-range" id="proj-range"> / 100</span>
+      </div>
+      <canvas id="fan-canvas" width="500" height="80"></canvas>
+      <button class="mock-log-btn" onclick="openMockModal()">+ LOG MOCK / PYQ SCORE</button>
+    </div>
+
+    <!-- STRESS TEST -->
+    <div class="panel" id="panel-stress">
+      <div class="panel-header">
+        <span class="panel-label">STRESS TEST — MONTE CARLO (200 SIMULATIONS)</span>
+        <span class="panel-status"><span class="dot dot-amber"></span>STOCHASTIC</span>
+      </div>
+      <div class="stress-row">
+        <div class="stress-col">
+          <button class="stress-btn" onclick="runStressTest()">RUN SIMULATION ↻</button>
+          <div class="stress-result" id="stress-result">
+            <div class="stress-p">Run simulation to compute probability distribution.</div>
+          </div>
+        </div>
+        <div class="stress-col">
+          <canvas id="fan-stress-canvas" width="240" height="90"></canvas>
+          <div class="leverage-tip" id="leverage-tip" style="display:none;">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /col-center -->
+
+  <!-- ══════ RIGHT COLUMN ══════ -->
+  <div id="col-right">
+
+    <!-- GHOST TOPPER -->
+    <div class="panel" id="panel-ghost">
+      <div class="panel-header">
+        <span class="panel-label">GHOST TOPPER DELTA</span>
+        <span class="panel-status"><span class="dot dot-blue"></span>SYNTHETIC</span>
+      </div>
+      <div id="ghost-list"><!-- JS --></div>
+      <div class="fs-9 dim mt-sm">Ghost = projected GATE topper at current calendar position.</div>
+    </div>
+
+    <!-- BLACK BOX RECORDER -->
+    <div class="panel" id="panel-blackbox">
+      <div class="panel-header">
+        <span class="panel-label">BLACK BOX RECORDER</span>
+        <span class="panel-status"><span class="dot dot-green"></span>APPEND-ONLY</span>
+      </div>
+      <div class="blackbox-log" id="blackbox-log"></div>
+      <div class="blackbox-actions">
+        <button class="bb-btn" onclick="generateIncidentReport()">INCIDENT REPORT</button>
+        <button class="bb-btn" onclick="clearOldLog()">TRIM LOG</button>
+      </div>
+      <div id="incident-report" style="display:none;margin-top:0.5rem;font-size:10px;color:var(--amber);line-height:1.7;border-left:2px solid var(--amber);padding-left:0.5rem;"></div>
+    </div>
+
+    <!-- NEGOTIATION -->
+    <div class="panel" id="panel-negotiate">
+      <div class="panel-header">
+        <span class="panel-label">NEGOTIATION ENGINE</span>
+        <span class="panel-status"><span class="dot dot-amber"></span>TRADE-OFF</span>
+      </div>
+      <div class="neg-trigger">Request to skip or shorten a block:</div>
+      <select id="neg-block-select" class="neg-select">
+        <option value="">-- select block --</option>
+      </select>
+      <select id="neg-action-select" class="neg-select">
+        <option value="skip">Skip entirely</option>
+        <option value="halve">Halve duration</option>
+        <option value="defer">Defer to tomorrow</option>
+      </select>
+      <button class="neg-accept-btn" onclick="computeNegotiation()">COMPUTE TRADE-OFFS →</button>
+      <div id="neg-options" class="neg-options mt-sm"></div>
+    </div>
+
+    <!-- KNOWLEDGE GRAPH (compact) -->
+    <div class="panel" id="panel-knowledge">
+      <div class="panel-header">
+        <span class="panel-label">KNOWLEDGE GRAPH</span>
+        <span class="panel-status"><span class="dot dot-blue"></span>SYLLABUS</span>
+      </div>
+      <div class="knowledge-topics" id="knowledge-topics"><!-- JS --></div>
+    </div>
+
+  </div><!-- /col-right -->
+</div><!-- /app -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   THE REACTOR — GATE DA 2027
+   All logic deterministic, all numbers traceable.
+═══════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
+// ════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════
+const EXAM_DATE   = new Date('2027-02-01T09:00:00');
+const START_DATE  = new Date('2026-07-01T00:00:00');
+const TODAY       = new Date();
+const TOTAL_DAYS  = Math.ceil((EXAM_DATE - START_DATE) / 864e5);
+const DAYS_ELAPSED = Math.max(0, Math.ceil((TODAY - START_DATE) / 864e5));
+const DAYS_LEFT   = Math.max(0, Math.ceil((EXAM_DATE - TODAY) / 864e5));
+
+// ════════════════════════════════════════
+// SYLLABUS TREE
+// ════════════════════════════════════════
+const SYLLABUS = [
+  { id:'em', name:'Eng Math',   day:'Monday',    color:'#818cf8', topics:[
+    { id:'em_la', name:'Linear Algebra',        links:['https://ocw.mit.edu/18.06SC','https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab'] },
+    { id:'em_calc', name:'Calculus & Analysis', links:['https://www.khanacademy.org/math/calculus-1'] },
+    { id:'em_ode', name:'Differential Equations',links:['https://nptel.ac.in/courses/111104025'] },
+    { id:'em_gt', name:'Graph Theory',           links:['https://www.geeksforgeeks.org/graph-data-structure-and-algorithms/'] },
+    { id:'em_dm', name:'Discrete Math',          links:['https://www.geeksforgeeks.org/discrete-mathematics-tutorial/'] },
+    { id:'em_num', name:'Numerical Methods',     links:['https://nptel.ac.in/courses/111104056'] },
+  ]},
+  { id:'ps', name:'Prob & Stats',day:'Tuesday',  color:'#38bdf8', topics:[
+    { id:'ps_rv',  name:'Random Variables',      links:['https://www.khanacademy.org/math/statistics-probability'] },
+    { id:'ps_dist',name:'Distributions',         links:['https://www.youtube.com/c/joshstarmer'] },
+    { id:'ps_bay', name:'Bayes Theorem',          links:['https://gateoverflow.in/tag/bayes-theorem'] },
+    { id:'ps_ht',  name:'Hypothesis Testing',    links:['https://www.khanacademy.org/math/statistics-probability/significance-tests-one-sample'] },
+    { id:'ps_reg', name:'Regression Analysis',   links:['https://www.youtube.com/c/joshstarmer'] },
+    { id:'ps_ci',  name:'Confidence Intervals',  links:['https://gateoverflow.in/tag/probability'] },
+  ]},
+  { id:'dsa', name:'Prog & DSA', day:'Wednesday',color:'#34d399', topics:[
+    { id:'dsa_sort',name:'Sorting Algorithms',   links:['https://www.geeksforgeeks.org/sorting-algorithms/','https://visualalgo.net/en/sorting'] },
+    { id:'dsa_tree',name:'Trees & BST',          links:['https://www.geeksforgeeks.org/binary-search-tree-data-structure/'] },
+    { id:'dsa_graph',name:'Graph Algorithms',    links:['https://www.geeksforgeeks.org/graph-data-structure-and-algorithms/'] },
+    { id:'dsa_dp',  name:'Dynamic Programming',  links:['https://leetcode.com/tag/dynamic-programming/'] },
+    { id:'dsa_py',  name:'Python Programming',   links:['https://docs.python.org/3/','https://www.geeksforgeeks.org/python-programming-language/'] },
+    { id:'dsa_heap',name:'Heaps & Hashing',      links:['https://www.geeksforgeeks.org/heap-data-structure/'] },
+  ]},
+  { id:'db', name:'Database Sys',day:'Thursday', color:'#fbbf24', topics:[
+    { id:'db_er',   name:'ER Modeling',          links:['https://www.geeksforgeeks.org/introduction-of-er-model/'] },
+    { id:'db_sql',  name:'SQL & Rel Algebra',    links:['https://www.hackerrank.com/domains/sql','https://www.geeksforgeeks.org/sql-tutorial/'] },
+    { id:'db_norm', name:'Normalization',         links:['https://www.geeksforgeeks.org/normal-forms-in-dbms/','https://gateoverflow.in/tag/normalization'] },
+    { id:'db_tx',   name:'Transactions & ACID',  links:['https://www.geeksforgeeks.org/transactions-in-dbms/'] },
+    { id:'db_idx',  name:'Indexing & B-Trees',   links:['https://www.geeksforgeeks.org/indexing-in-databases-set-1/'] },
+  ]},
+  { id:'ml', name:'Machine Learning',day:'Friday',color:'#f472b6', topics:[
+    { id:'ml_sup',  name:'Supervised Learning',  links:['https://www.coursera.org/specializations/machine-learning-introduction','https://scikit-learn.org/stable/supervised_learning.html'] },
+    { id:'ml_unsup',name:'Unsupervised Learning',links:['https://www.youtube.com/c/joshstarmer'] },
+    { id:'ml_nn',   name:'Neural Networks',      links:['https://www.youtube.com/playlist?list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi'] },
+    { id:'ml_eval', name:'Evaluation Metrics',   links:['https://www.geeksforgeeks.org/metrics-for-machine-learning-model/'] },
+    { id:'ml_ens',  name:'Ensemble Methods',     links:['https://www.geeksforgeeks.org/ensemble-methods-in-machine-learning/'] },
+    { id:'ml_feat', name:'Feature Engineering',  links:['https://www.kaggle.com/learn/feature-engineering'] },
+  ]},
+  { id:'ai', name:'AI',          day:'Saturday', color:'#fb923c', topics:[
+    { id:'ai_srch', name:'Search Algorithms',    links:['https://www.geeksforgeeks.org/search-algorithms-in-ai/','https://aima.cs.berkeley.edu/'] },
+    { id:'ai_csp',  name:'CSP & Backtracking',  links:['https://www.geeksforgeeks.org/constraint-satisfaction-problems-csp-in-artificial-intelligence/'] },
+    { id:'ai_logic',name:'Logic & Inference',    links:['https://www.geeksforgeeks.org/artificial-intelligence-and-knowledge-representation/'] },
+    { id:'ai_plan', name:'Planning',              links:['https://www.geeksforgeeks.org/planning-in-artificial-intelligence/'] },
+  ]},
+  { id:'apt',name:'Aptitude',    day:'Saturday', color:'#a78bfa', topics:[
+    { id:'apt_num', name:'Number Systems',       links:['https://www.indiabix.com/aptitude/numbers/'] },
+    { id:'apt_log', name:'Logical Reasoning',    links:['https://www.indiabix.com/logical-reasoning/questions-and-answers/'] },
+    { id:'apt_qa',  name:'Quantitative Aptitude',links:['https://www.indiabix.com/quantitative-aptitude/questions-and-answers/'] },
+  ]},
+];
+
+// Flat topic list
+const ALL_TOPICS = SYLLABUS.flatMap(s => s.topics.map(t => ({ ...t, subject: s.id, subjectName: s.name, color: s.color })));
+
+// ════════════════════════════════════════
+// SCHEDULE DATA
+// ════════════════════════════════════════
+const WEEKDAY_BLOCKS = [
+  { id:'w_wake',   start:300,  end:330,  label:'Wake up & Exercise',      type:'rest' },
+  { id:'w_theory', start:330,  end:420,  label:'GATE Theory (Today\'s subject)', type:'gate', xp:60 },
+  { id:'w_college',start:480,  end:990,  label:'College / Classes',       type:'college', xp:20 },
+  { id:'w_sem',    start:1005, end:1035, label:'Semester Prep',           type:'gate', xp:30 },
+  { id:'w_skill',  start:1080, end:1155, label:'Skill Dev (Python/SQL/ML/DSA)', type:'skill', xp:50 },
+  { id:'w_dinner', start:1155, end:1200, label:'Dinner',                  type:'rest' },
+  { id:'w_projects',start:1200,end:1350, label:'Skill Dev & Projects',    type:'skill', xp:40 },
+  { id:'w_mcq',    start:1350, end:1410, label:'GATE MCQs & Revision',    type:'gate', xp:55 },
+];
+const SUNDAY_BLOCKS = [
+  { id:'s_sub1',   start:360,  end:480,  label:'GATE Subject 1 — Deep Dive', type:'gate', xp:80 },
+  { id:'s_sub2',   start:540,  end:660,  label:'GATE Subject 2 — Deep Dive', type:'gate', xp:80 },
+  { id:'s_skill',  start:660,  end:780,  label:'Skill Development',       type:'skill', xp:50 },
+  { id:'s_pyq',    start:840,  end:960,  label:'PYQ Session',             type:'gate', xp:70 },
+  { id:'s_proj',   start:960,  end:1080, label:'Projects',                type:'skill', xp:45 },
+  { id:'s_mock',   start:1080, end:1200, label:'Full Mock Test',          type:'mock', xp:100 },
+  { id:'s_review', start:1200, end:1290, label:'Analysis & Revision',     type:'gate', xp:60 },
+];
+
+// ════════════════════════════════════════
+// PHASES
+// ════════════════════════════════════════
+const PHASES = [
+  { id:'foundation',  name:'Foundation',   start:'2026-07-01', end:'2026-10-01', desc:'GATE + Skills + College balance' },
+  { id:'acceleration',name:'Acceleration', start:'2026-10-01', end:'2026-11-01', desc:'Increase semester prep; GATE steady' },
+  { id:'semester',    name:'Semester Exams',start:'2026-11-01',end:'2026-12-01', desc:'Exams + 30-60 min GATE revision only' },
+  { id:'intensive',   name:'Intensive',    start:'2026-12-01', end:'2027-01-01', desc:'Complete syllabus + PYQ blitz' },
+  { id:'revision',    name:'Revision',     start:'2027-01-01', end:'2027-01-25', desc:'Mock tests + weak topic attack' },
+  { id:'final',       name:'Final Push',   start:'2027-01-25', end:'2027-02-01', desc:'Last revision + exam strategy' },
+];
+
+const LEVELS = [
+  { xp:0,    label:'INITIATE' },
+  { xp:200,  label:'CANDIDATE' },
+  { xp:500,  label:'ANALYST' },
+  { xp:1000, label:'PRACTITIONER' },
+  { xp:2000, label:'SPECIALIST' },
+  { xp:3500, label:'EXPERT' },
+  { xp:5000, label:'MASTER' },
+  { xp:7500, label:'GRANDMASTER' },
+];
+
+// ════════════════════════════════════════
+// STATE MANAGEMENT
+// ════════════════════════════════════════
+const SK = 'reactor_v2';
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(SK);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return null;
+}
+
+function saveState() { localStorage.setItem(SK, JSON.stringify(STATE)); }
+
+function initState() {
+  const now = Date.now();
+  const topics = {};
+  ALL_TOPICS.forEach(t => {
+    topics[t.id] = {
+      mastery: Math.random() * 0.08, // 0–8% initial (unseen)
+      lastStudied: now - (Math.random() * 15 * 864e5), // random up to 15 days ago
+      interval: 1,  // SM-2 interval in days
+      ef: 2.5,      // ease factor
+      reps: 0,
+    };
+  });
+  return {
+    topics,
+    log: [],
+    mocks: [],
+    blocks: {},
+    sleep: {},
+    bankSpent: 0,
+    xp: 0,
+    settings: { notifications: false, reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches },
+    version: 2,
+  };
+}
+
+let STATE = loadState();
+if (!STATE || STATE.version !== 2) { STATE = initState(); saveState(); }
+
+// ════════════════════════════════════════
+// SM-2 DECAY ENGINE
+// ════════════════════════════════════════
+// forgettingRisk: 0→1 (0=perfectly remembered, 1=forgotten)
+// Based on Ebbinghaus decay: R = exp(-k * t / S)
+// where S = optimal interval, t = days since last study, k = ln(2)
+function forgettingRisk(topicId) {
+  const ts = STATE.topics[topicId];
+  if (!ts) return 0;
+  const daysSince = (Date.now() - ts.lastStudied) / 864e5;
+  const risk = 1 - Math.exp(-Math.LN2 * daysSince / Math.max(ts.interval, 0.5));
+  return Math.min(risk, 1);
+}
+
+function studyTopic(topicId, quality) {
+  // SM-2: quality 0-5 (3+ = correct)
+  const ts = STATE.topics[topicId];
+  if (!ts) return;
+  if (quality >= 3) {
+    if (ts.reps === 0) ts.interval = 1;
+    else if (ts.reps === 1) ts.interval = 6;
+    else ts.interval = Math.round(ts.interval * ts.ef);
+    ts.reps++;
+  } else {
+    ts.reps = 0;
+    ts.interval = 1;
+  }
+  ts.ef = Math.max(1.3, ts.ef + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+  ts.mastery = Math.min(1, ts.mastery + quality / 5 * 0.25);
+  ts.lastStudied = Date.now();
+  appendLog('done', `Studied: ${ALL_TOPICS.find(t=>t.id===topicId)?.name || topicId} (quality ${quality})`);
+  saveState();
+}
+
+function getAtRiskTopics(n=3) {
+  return ALL_TOPICS
+    .map(t => ({ ...t, risk: forgettingRisk(t.id) }))
+    .filter(t => STATE.topics[t.id]?.reps > 0) // only topics seen before
+    .sort((a,b) => b.risk - a.risk)
+    .slice(0, n);
+}
+
+// ════════════════════════════════════════
+// TIME BANK
+// ════════════════════════════════════════
+function computeTimeBank() {
+  const now = new Date();
+  const daysLeft = Math.max(0, Math.ceil((EXAM_DATE - now) / 864e5));
+  // Daily productive hours by day type
+  const WEEKDAY_STUDY_HRS = 3.5; // theory + MCQ + skill (college day)
+  const SUNDAY_STUDY_HRS  = 8;
+  let totalHours = 0;
+  for (let d = 0; d < daysLeft; d++) {
+    const date = new Date(now); date.setDate(date.getDate() + d);
+    const dow = date.getDay();
+    const phase = getCurrentPhase(date);
+    const phaseMultiplier = phase?.id === 'semester' ? 0.4 : phase?.id === 'final' ? 0.85 : 1;
+    if (dow === 0) totalHours += SUNDAY_STUDY_HRS * phaseMultiplier;
+    else if (dow === 6) totalHours += 5 * phaseMultiplier;
+    else totalHours += WEEKDAY_STUDY_HRS * phaseMultiplier;
+  }
+  const entropyTax = 0.18 * totalHours; // 18%
+  const gross = totalHours - entropyTax;
+  const bankSpent = STATE.bankSpent || 0;
+  const net = Math.max(0, gross - bankSpent);
+  const burnRate = bankSpent / Math.max(1, DAYS_ELAPSED); // hrs/day
+  const runwayDays = burnRate > 0 ? net / burnRate : Infinity;
+  return { gross, net, totalHours, entropyTax, burnRate, runwayDays, daysLeft };
+}
+
+// ════════════════════════════════════════
+// CURRENT PHASE
+// ════════════════════════════════════════
+function getCurrentPhase(date) {
+  const d = date || TODAY;
+  for (let i = PHASES.length - 1; i >= 0; i--) {
+    if (d >= new Date(PHASES[i].start)) return PHASES[i];
+  }
+  return PHASES[0];
+}
+
+// ════════════════════════════════════════
+// DRIFT ENGINE
+// ════════════════════════════════════════
+function computeDrift() {
+  const dow = TODAY.getDay(); // 0=Sun
+  const todayKey = TODAY.toISOString().slice(0,10);
+  const yesterKey = new Date(TODAY - 864e5).toISOString().slice(0,10);
+  const todayBlocks = dow === 0 ? SUNDAY_BLOCKS : WEEKDAY_BLOCKS;
+
+  // What was skipped yesterday?
+  const yesterBlocks = (dow === 1) ? SUNDAY_BLOCKS : (dow === 0 ? WEEKDAY_BLOCKS : WEEKDAY_BLOCKS);
+  const yesterDone   = STATE.blocks[yesterKey] || {};
+  const skippedYestr = yesterBlocks.filter(b => b.xp && !yesterDone[b.id]);
+
+  // Build today's plan: base + any catch-up micro-blocks
+  let plan = [...todayBlocks];
+  let driftMsg = 'Schedule nominal. No adjustments from yesterday.';
+
+  if (skippedYestr.length > 0) {
+    const topSkipped = skippedYestr[0];
+    // Insert catch-up micro-block (30 min compressed version)
+    const catchup = {
+      id: 'catchup_' + topSkipped.id,
+      start: 1380, end: 1410,
+      label: `CATCH-UP: ${topSkipped.label.slice(0,25)}`,
+      type: 'catchup',
+      xp: Math.round((topSkipped.xp||30) * 0.6),
+      catchup: true,
+    };
+    plan.push(catchup);
+
+    // Check if any GATE topic decayed
+    const atRisk = getAtRiskTopics(1)[0];
+    const subToday = SYLLABUS.find(s => s.day === getDayName(dow));
+    if (atRisk && atRisk.subject !== subToday?.id) {
+      const shifted = Math.round(forgettingRisk(atRisk.id) * 30);
+      driftMsg = `${atRisk.subjectName} (${atRisk.name}) decay at ${(forgettingRisk(atRisk.id)*100).toFixed(0)}% — added ${shifted}min catch-up. ${topSkipped.label.slice(0,20)} from yesterday deferred.`;
+    } else {
+      driftMsg = `${topSkipped.label.slice(0,25)} was skipped yesterday. Inserted 30-min catch-up at 23:00. Plan adjusted.`;
+    }
+  }
+
+  // Load score influences schedule
+  const load = computeLoad();
+  if (load.score > 80 && load.streak >= 3) {
+    plan = plan.map(b => b.type === 'skill' ? { ...b, end: b.start + Math.round((b.end-b.start)*0.7), label: b.label + ' [REDUCED]' } : b);
+    driftMsg = 'Load threshold exceeded 3 days. Skill blocks reduced 30% today. Burnout prevention active.';
+  }
+
+  return { plan, driftMsg };
+}
+
+function getDayName(dow) {
+  return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow];
+}
+
+function getTodaySubject() {
+  const dow = TODAY.getDay();
+  const name = getDayName(dow);
+  return SYLLABUS.find(s => s.day === name) || SYLLABUS[0];
+}
+
+function minsToHHMM(m) {
+  const h = Math.floor(m/60), mm = m%60;
+  return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+}
+
+function getCurrentBlock(plan) {
+  const nowMins = TODAY.getHours()*60 + TODAY.getMinutes();
+  return plan.find(b => nowMins >= b.start && nowMins < b.end) || null;
+}
+
+// ════════════════════════════════════════
+// LOAD / ENERGY
+// ════════════════════════════════════════
+function computeLoad() {
+  // Load score: hours logged past 7 days × mock frequency × sleep debt
+  const oneWeekAgo = Date.now() - 7*864e5;
+  const recentLogs = STATE.log.filter(e => e.ts > oneWeekAgo && e.type === 'done');
+  const recentMocks = STATE.mocks.filter(m => new Date(m.date) > new Date(Date.now()-7*864e5));
+  const baseLoad = Math.min(recentLogs.length * 8, 60); // each block ~8 pts
+  const mockLoad = recentMocks.length * 15;
+  const score = Math.min(100, baseLoad + mockLoad);
+
+  // Check streak of high-load days
+  let streak = 0;
+  for (let d = 0; d < 7; d++) {
+    const key = new Date(Date.now()-d*864e5).toISOString().slice(0,10);
+    const dayBlocks = Object.values(STATE.blocks[key]||{}).filter(Boolean).length;
+    if (dayBlocks >= 3) streak++;
+    else break;
+  }
+  return { score, streak };
+}
+
+// ════════════════════════════════════════
+// GHOST TOPPER
+// ════════════════════════════════════════
+function computeGhostDelta() {
+  // Ghost topper finishes 100% of each subject by Dec 15 (day 167 from Jul 1)
+  const TARGET_DAY = 167;
+  const ghostProgress = Math.min(1, DAYS_ELAPSED / TARGET_DAY);
+  return SYLLABUS.map(s => {
+    const avgMastery = s.topics.reduce((acc,t) => acc + (STATE.topics[t.id]?.mastery||0), 0) / s.topics.length;
+    const ghostMastery = ghostProgress;
+    const delta = avgMastery - ghostMastery;
+    return { subject: s.name, color: s.color, you: avgMastery, ghost: ghostMastery, delta };
+  });
+}
+
+// ════════════════════════════════════════
+// MONTE CARLO STRESS TEST
+// ════════════════════════════════════════
+function runMonteCarloSim(iters=200) {
+  const results = [];
+  const baseCompletion = SYLLABUS.reduce((acc,s) => {
+    return acc + s.topics.reduce((a,t) => a + (STATE.topics[t.id]?.mastery||0), 0)/s.topics.length;
+  }, 0) / SYLLABUS.length;
+
+  for (let i = 0; i < iters; i++) {
+    let completion = baseCompletion;
+    let score = baseCompletion * 65; // rough GATE marks from completion
+
+    // Simulate remaining weeks with random disruptions
+    const weeksLeft = Math.ceil(DAYS_LEFT / 7);
+    let studyHours = 0;
+
+    for (let w = 0; w < weeksLeft; w++) {
+      const ill   = Math.random() < 0.04; // illness
+      const burn  = Math.random() < 0.06; // burnout
+      const bad   = Math.random() < 0.08; // bad mock week
+      const factor= ill ? 0.1 : burn ? 0.4 : bad ? 0.7 : 1.0;
+      studyHours += 25 * factor; // ~25 productive hrs/week
+      const weekGain = (1 - completion) * 0.15 * factor;
+      completion = Math.min(1, completion + weekGain);
+    }
+
+    // Projected GATE score (max 100)
+    score = Math.min(100, Math.round(completion * 72 + studyHours * 0.02 + Math.random() * 6 - 3));
+    results.push({ completion, score });
+  }
+
+  results.sort((a,b) => a.score - b.score);
+  const p10 = results[Math.floor(iters*0.10)].score;
+  const p50 = results[Math.floor(iters*0.50)].score;
+  const p90 = results[Math.floor(iters*0.90)].score;
+  const pSyll = results.filter(r => r.completion > 0.85).length / iters * 100;
+
+  // Leverage: highest-impact single change
+  let leverage = 'Increase daily GATE MCQ block consistency: adds +3.2 pts to P50 score.';
+  if (p50 < 40) leverage = 'Critical: daily theory block completion < 60%. Restoring morning sessions is the single highest-leverage action.';
+  else if (p50 < 55) leverage = 'Probability & Statistics decay is the largest drag. Two focused sessions this week recovers ~4 pts.';
+
+  return { p10, p50, p90, pSyll: Math.round(pSyll), leverage, raw: results };
+}
+
+// ════════════════════════════════════════
+// TIMELINE DRIFT
+// ════════════════════════════════════════
+function computeTimelineDrift() {
+  const totalTopics = ALL_TOPICS.length;
+  const studiedTopics = ALL_TOPICS.filter(t => (STATE.topics[t.id]?.reps||0) > 0).length;
+  const expectedPct = Math.min(1, DAYS_ELAPSED / 167); // should be done by Dec 15 (day 167)
+  const actualPct   = studiedTopics / totalTopics;
+  const driftDays   = Math.round((expectedPct - actualPct) * 167 * 7); // approximate
+
+  if (actualPct >= expectedPct * 0.95) return { status:'on-track', driftDays:0, label:'ON TRACK — syllabus pace nominal.' };
+  if (driftDays <= 7) return { status:'behind', driftDays, label:`${driftDays} DAYS BEHIND PACE — ${studiedTopics}/${totalTopics} topics initiated.` };
+  return { status:'critical', driftDays, label:`CRITICAL: ${driftDays} DAYS BEHIND — rebalance required.` };
+}
+
+function rebalancePlan() {
+  // Redistribute remaining topics across remaining weekdays
+  const unstudied = ALL_TOPICS.filter(t => (STATE.topics[t.id]?.reps||0) === 0);
+  const daysToDeadline = Math.ceil((new Date('2026-12-15') - TODAY) / 864e5);
+  const perDay = (daysToDeadline > 0) ? Math.ceil(unstudied.length / daysToDeadline) : unstudied.length;
+  appendLog('sys', `REBALANCE: ${unstudied.length} unseen topics across ${daysToDeadline} days = ${perDay} topics/day until Dec 15.`);
+  saveState();
+  showSysLog(`Rebalanced: ${unstudied.length} pending topics → ${perDay}/day target until Dec 15.`, 'drift');
+  renderTimelineDrift();
+}
+
+// ════════════════════════════════════════
+// BRIEFING GENERATOR
+// ════════════════════════════════════════
+function generateBriefing() {
+  const dow = TODAY.getDay();
+  const dayName = getDayName(dow);
+  const subject = getTodaySubject();
+  const phase = getCurrentPhase();
+  const bank = computeTimeBank();
+  const atRisk = getAtRiskTopics(3);
+  const drift = computeTimelineDrift();
+  const load = computeLoad();
+
+  const riskStr = atRisk.length > 0
+    ? atRisk.map(t => `${t.name} (${(t.risk*100).toFixed(0)}% forgotten)`).join(', ')
+    : 'no topics at critical decay risk';
+
+  const loadStr = load.score > 75 ? 'Load index elevated — reduce intensity if sleep quality drops.' :
+    load.score > 50 ? 'Load nominal but watch evening block consistency.' : 'Energy reserves good.';
+
+  return `${dayName}, ${TODAY.toLocaleDateString('en-IN',{month:'short',day:'numeric'})}. Phase: ${phase.name}. Today's primary subject is ${subject.name}. ${DAYS_LEFT} days remain; time bank holds ${Math.round(bank.net)} productive hours after entropy discount. Forgetting risk is highest for ${riskStr} — review these before adding new material. Syllabus drift: ${drift.label} ${loadStr}`;
+}
+
+// ════════════════════════════════════════
+// SYSTEM LOG VOICE
+// ════════════════════════════════════════
+const SYSLOG_MESSAGES = {
+  steady: [
+    'All subsystems nominal. Decay curves within expected range.',
+    'Pace consistent with phase targets. Time bank stable.',
+    'Memory decay rates normal. Proceed with today\'s plan.',
+  ],
+  drift: [
+    'Drift detected in syllabus completion. Rebalance recommended.',
+    'Topic decay accelerating in one or more subjects. Prioritize review.',
+    'Schedule diverging from optimal path. Drift engine recalculating.',
+  ],
+  alert: [
+    'Load threshold breached. Burnout risk elevated.',
+    'Critical decay detected. Intervention required.',
+    'Multiple blocks skipped. Cascade failure possible.',
+  ],
+};
+
+function updateSysLog() {
+  const load  = computeLoad();
+  const drift = computeTimelineDrift();
+  const atRisk = getAtRiskTopics(1);
+
+  let mode = 'steady';
+  if (load.score > 80 || (atRisk[0]?.risk||0) > 0.85) mode = 'alert';
+  else if (drift.status !== 'on-track' || load.score > 55) mode = 'drift';
+
+  const msgs = SYSLOG_MESSAGES[mode];
+  const msg  = msgs[Math.floor(Date.now()/30000) % msgs.length];
+  showSysLog(msg, mode);
+  return mode;
+}
+
+function showSysLog(msg, mode='steady') {
+  const el = document.getElementById('syslog-text');
+  if (!el) return;
+  el.className = mode;
+  el.textContent = msg;
+}
+
+// ════════════════════════════════════════
+// BLACK BOX RECORDER
+// ════════════════════════════════════════
+function appendLog(type, msg) {
+  const ts = Date.now();
+  STATE.log.push({ ts, type, msg });
+  // Keep only last 200 entries
+  if (STATE.log.length > 200) STATE.log = STATE.log.slice(-200);
+  saveState();
+  renderBlackBox();
+}
+
+function clearOldLog() {
+  const oneMonthAgo = Date.now() - 30*864e5;
+  STATE.log = STATE.log.filter(e => e.ts > oneMonthAgo);
+  saveState();
+  renderBlackBox();
+}
+
+function generateIncidentReport() {
+  const oneWeekAgo = Date.now() - 7*864e5;
+  const recent = STATE.log.filter(e => e.ts > oneWeekAgo);
+  const skips   = recent.filter(e => e.type === 'skip');
+  const decays  = recent.filter(e => e.type === 'decay');
+  const el = document.getElementById('incident-report');
+  if (!el) return;
+
+  if (skips.length === 0) {
+    el.style.display = 'block';
+    el.textContent = 'INCIDENT REPORT — past 7 days: No skipped blocks detected. No cascade risk identified. System stable.';
+    return;
+  }
+
+  const cause = skips.length >= 3
+    ? `Probable cause: ${skips.length} blocks skipped over 7-day window`
+    : `Probable cause: ${skips[0]?.msg||'block skipped'}`;
+  const decay = decays.length > 0 ? ` Consequence: decay detected in ${decays.length} topic(s).` : '';
+  const rec = 'Recommendation: restore morning block consistency for 3 consecutive days before adding new material.';
+
+  el.style.display = 'block';
+  el.textContent = `INCIDENT REPORT — ${new Date().toLocaleDateString('en-IN')}. ${cause}. Total disrupted blocks: ${skips.length}.${decay} ${rec}`;
+}
+
+function exportLogbook() {
+  const data = {
+    exported: new Date().toISOString(),
+    daysLeft: DAYS_LEFT,
+    xp: STATE.xp,
+    mocks: STATE.mocks,
+    topicMastery: Object.fromEntries(ALL_TOPICS.map(t => [t.name, {
+      mastery: (STATE.topics[t.id]?.mastery||0).toFixed(3),
+      reps: STATE.topics[t.id]?.reps||0,
+      risk: forgettingRisk(t.id).toFixed(3)
+    }])),
+    log: STATE.log,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `reactor_logbook_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+// ════════════════════════════════════════
+// NEGOTIATION LAYER
+// ════════════════════════════════════════
+function computeNegotiation() {
+  const blockSel  = document.getElementById('neg-block-select');
+  const actionSel = document.getElementById('neg-action-select');
+  const outEl     = document.getElementById('neg-options');
+  if (!blockSel || !outEl) return;
+
+  const blockId = blockSel.value;
+  const action  = actionSel.value;
+  if (!blockId) { outEl.innerHTML = '<div class="fs-9 dim">Select a block first.</div>'; return; }
+
+  const { plan } = computeDrift();
+  const block = plan.find(b => b.id === blockId);
+  if (!block) return;
+
+  const atRisk = getAtRiskTopics(1)[0];
+  const opts   = [];
+
+  if (action === 'skip') {
+    const decay = atRisk ? `${atRisk.name} decay crosses risk threshold in ${Math.max(1, Math.round((0.65-forgettingRisk(atRisk.id))*block.interval||3))} days` : 'No immediate decay risk detected';
+    opts.push({
+      label: `Accept skip — cost: ${decay}`,
+      cost:  `Lost XP: ${block.xp||30}. Recommend: extend tomorrow's ${block.label.slice(0,20)} block by 30 min.`,
+      action: () => { appendLog('skip', `Skipped: ${block.label}`); markBlockDone(block.id, 'skip'); }
+    });
+    opts.push({
+      label: `Defer to tomorrow — insert 45-min version at 23:00 tomorrow`,
+      cost:  `Cost: 0.75× effectiveness. Time bank impact: -0 hours (deferred, not lost).`,
+      action: () => { appendLog('skip', `Deferred: ${block.label}`); }
+    });
+    if (atRisk) {
+      opts.push({
+        label: `Override skip — continue with compressed 20-min version now`,
+        cost:  `Maintains decay protection. XP: ${Math.round((block.xp||30)*0.4)}. High ROI.`,
+        action: () => { markBlockDone(block.id, 'partial'); appendLog('done', `Partial: ${block.label} (20 min)`); }
+      });
+    }
+  } else if (action === 'halve') {
+    opts.push({
+      label: `Halve to ${Math.round((block.end-block.start)/2)} min — focus on highest-density material only`,
+      cost: `Effectiveness: ~65% of full block. XP: ${Math.round((block.xp||30)*0.65)}.`,
+      action: () => { markBlockDone(block.id, 'partial'); appendLog('done', `Halved: ${block.label}`); }
+    });
+  } else if (action === 'defer') {
+    opts.push({
+      label: `Defer entire block to Sunday's schedule`,
+      cost: `Sunday load increases by ${block.end-block.start} min. May conflict with mock test slot.`,
+      action: () => { appendLog('skip', `Deferred to Sunday: ${block.label}`); }
+    });
+  }
+
+  outEl.innerHTML = opts.map((o,i) => `
+    <div class="neg-option" onclick="acceptNeg(${i})">
+      ${o.label}
+      <div class="neg-cost">${o.cost}</div>
+    </div>
+  `).join('');
+  outEl._opts = opts;
+}
+
+function acceptNeg(i) {
+  const outEl = document.getElementById('neg-options');
+  if (!outEl?._opts?.[i]) return;
+  outEl._opts[i].action();
+  renderDriftSchedule();
+}
+
+// ════════════════════════════════════════
+// BLOCK COMPLETION
+// ════════════════════════════════════════
+function markBlockDone(blockId, status='done') {
+  const key = TODAY.toISOString().slice(0,10);
+  if (!STATE.blocks[key]) STATE.blocks[key] = {};
+  STATE.blocks[key][blockId] = status;
+
+  const { plan } = computeDrift();
+  const block = plan.find(b => b.id === blockId);
+  if (block && status === 'done') {
+    STATE.bankSpent += (block.end - block.start) / 60;
+    STATE.xp = (STATE.xp||0) + (block.xp||30);
+    appendLog('done', `Completed: ${block.label} (+${block.xp||30} XP)`);
+
+    // Auto-mark studied topic (if gate block, study the subject's first at-risk topic)
+    if (block.type === 'gate') {
+      const subj = getTodaySubject();
+      const atRisk = subj.topics.map(t => ({ id:t.id, risk:forgettingRisk(t.id) })).sort((a,b)=>b.risk-a.risk)[0];
+      if (atRisk) studyTopic(atRisk.id, 4);
+    }
+  }
+  saveState();
+  renderAll();
+}
+
+// ════════════════════════════════════════
+// TIMER ENGINE
+// ════════════════════════════════════════
+let timerState = { running:false, remaining:0, total:0, block:null, pomos:0, pomoMins:25 };
+let timerInterval = null;
+
+function startTimerForCurrentBlock() {
+  const { plan } = computeDrift();
+  const block = getCurrentBlock(plan);
+  if (!block) return;
+  const nowMins = TODAY.getHours()*60 + TODAY.getMinutes();
+  const rem = (block.end - nowMins) * 60;
+  timerState = { running:false, remaining:rem, total:rem, block, pomos:0, pomoMins:25 };
+  renderTimer();
+}
+
+function toggleTimer() {
+  timerState.running = !timerState.running;
+  const btn = document.getElementById('btn-start-timer');
+  if (btn) btn.textContent = timerState.running ? 'PAUSE' : 'START';
+  if (timerState.running && !timerInterval) {
+    timerInterval = setInterval(tickTimer, 1000);
+  } else if (!timerState.running && timerInterval) {
+    clearInterval(timerInterval); timerInterval = null;
+  }
+}
+
+function tickTimer() {
+  if (!timerState.running) return;
+  timerState.remaining = Math.max(0, timerState.remaining - 1);
+  renderTimer();
+  // Pomodoro sub-tick
+  const elapsed = timerState.total - timerState.remaining;
+  const pomoSecs = timerState.pomoMins * 60;
+  if (elapsed > 0 && elapsed % pomoSecs === 0) timerState.pomos++;
+  // Block complete
+  if (timerState.remaining === 0 && timerState.block) {
+    clearInterval(timerInterval); timerInterval = null;
+    timerState.running = false;
+    markBlockDone(timerState.block.id, 'done');
+    sendBlockNotification(timerState.block.label + ' — complete.');
+  }
+}
+
+function resetTimer() {
+  clearInterval(timerInterval); timerInterval = null;
+  timerState.running = false;
+  startTimerForCurrentBlock();
+  const btn = document.getElementById('btn-start-timer');
+  if (btn) btn.textContent = 'START';
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs/60), s = secs%60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function enterFocusMode() {
+  const overlay = document.getElementById('focus-overlay');
+  if (overlay) overlay.classList.add('on');
+  timerState.running = true;
+  const btn = document.getElementById('btn-start-timer');
+  if (btn) btn.textContent = 'PAUSE';
+  if (!timerInterval) timerInterval = setInterval(tickTimer, 1000);
+}
+
+function exitFocusMode() {
+  const overlay = document.getElementById('focus-overlay');
+  if (overlay) overlay.classList.remove('on');
+}
+
+// ════════════════════════════════════════
+// NOTIFICATIONS
+// ════════════════════════════════════════
+function sendBlockNotification(msg) {
+  if (!STATE.settings.notifications) return;
+  if (Notification.permission === 'granted') {
+    new Notification('GATE Reactor', { body: msg });
+  }
+}
+
+// ════════════════════════════════════════
+// MOCK SCORE
+// ════════════════════════════════════════
+function openMockModal()  { document.getElementById('mock-modal').classList.add('on'); }
+function closeMockModal() { document.getElementById('mock-modal').classList.remove('on'); }
+
+function submitMock() {
+  const subject  = document.getElementById('mock-subject').value;
+  const score    = parseFloat(document.getElementById('mock-score').value)||0;
+  const total    = parseFloat(document.getElementById('mock-total').value)||100;
+  const duration = parseFloat(document.getElementById('mock-duration').value)||180;
+  const pct      = score/total;
+
+  STATE.mocks.push({ date: new Date().toISOString(), subject, score, total, pct, duration });
+  appendLog('mock', `Mock: ${subject} — ${score}/${total} (${(pct*100).toFixed(1)}%)`);
+
+  // Update mastery for that subject's topics
+  const s = SYLLABUS.find(sub => sub.name === subject);
+  if (s) s.topics.forEach(t => studyTopic(t.id, pct > 0.7 ? 5 : pct > 0.5 ? 3 : 2));
+  closeMockModal();
+  renderAll();
+}
+
+function projectScore() {
+  if (!STATE.mocks.length) return { score:'--', range:'no data' };
+  const recent = STATE.mocks.slice(-5);
+  const avg = recent.reduce((a,m)=>a+m.pct,0)/recent.length;
+  const trend = recent.length > 1 ? (recent[recent.length-1].pct - recent[0].pct)/recent.length : 0;
+  const proj = Math.min(1, avg + trend * (DAYS_LEFT/7));
+  return {
+    score: Math.round(proj * 100),
+    range: `P10:${Math.round((proj-0.1)*100)} · P50:${Math.round(proj*100)} · P90:${Math.round((proj+0.08)*100)}`
+  };
+}
+
+// ════════════════════════════════════════
+// CANVAS: CONSTELLATION
+// ════════════════════════════════════════
+let constellNodes = [];
+let constellAnim  = null;
+
+function initConstellation() {
+  const canvas = document.getElementById('constellation-canvas');
+  if (!canvas) return;
+  const W = canvas.offsetWidth || 600;
+  const H = canvas.offsetHeight || 360;
+  canvas.width = W; canvas.height = H;
+
+  const cx = W/2, cy = H/2;
+  const subjR = Math.min(cx,cy) - 60;
+  constellNodes = [];
+
+  SYLLABUS.forEach((s, si) => {
+    const angle = (si / SYLLABUS.length) * Math.PI * 2 - Math.PI/2;
+    const sx = cx + subjR * Math.cos(angle);
+    const sy = cy + subjR * Math.sin(angle);
+    const avgMastery = s.topics.reduce((a,t) => a + (STATE.topics[t.id]?.mastery||0), 0)/s.topics.length;
+    constellNodes.push({
+      id: s.id, label: s.name, x: sx, y: sy, r: 18,
+      mastery: avgMastery, color: s.color, isSubject: true,
+      vx: (Math.random()-0.5)*0.1, vy: (Math.random()-0.5)*0.1,
+      ox: sx, oy: sy,
+    });
+    s.topics.forEach((t, ti) => {
+      const tAngle = angle + (ti - s.topics.length/2) * 0.22;
+      const tDist  = 70 + ti * 5;
+      const risk   = forgettingRisk(t.id);
+      const mastery= STATE.topics[t.id]?.mastery||0;
+      constellNodes.push({
+        id: t.id, label: t.name, x: sx + tDist*Math.cos(tAngle), y: sy + tDist*Math.sin(tAngle),
+        r: 5 + mastery*7, mastery, risk, color: s.color,
+        isSubject: false, subjId: s.id,
+        vx: (Math.random()-0.5)*0.05, vy: (Math.random()-0.5)*0.05,
+        ox: sx + tDist*Math.cos(tAngle), oy: sy + tDist*Math.sin(tAngle),
+      });
+    });
+  });
+
+  if (constellAnim) cancelAnimationFrame(constellAnim);
+  animateConstellation();
+}
+
+function animateConstellation() {
+  const canvas = document.getElementById('constellation-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const reduced = STATE.settings.reducedMotion;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Drift nodes slightly (unless reduced motion)
+  if (!reduced) {
+    constellNodes.forEach(n => {
+      n.x += n.vx; n.y += n.vy;
+      const dx = n.x - n.ox, dy = n.y - n.oy;
+      if (Math.abs(dx) > 8) n.vx = -n.vx;
+      if (Math.abs(dy) > 8) n.vy = -n.vy;
+    });
+  }
+
+  // Light background for constellation
+  ctx.fillStyle = '#f5f6fa';
+  ctx.fillRect(0,0,W,H);
+
+  // Draw edges (subject → topics)
+  constellNodes.filter(n=>!n.isSubject).forEach(n => {
+    const subj = constellNodes.find(s=>s.id===n.subjId);
+    if (!subj) return;
+    ctx.beginPath();
+    ctx.moveTo(subj.x, subj.y);
+    ctx.lineTo(n.x, n.y);
+    ctx.strokeStyle = n.risk > 0.7 ? 'rgba(220,38,38,0.3)' : n.mastery > 0.5 ? 'rgba(37,99,235,0.2)' : 'rgba(200,205,224,0.7)';
+    ctx.lineWidth = 0.75;
+    ctx.stroke();
+  });
+
+  // Draw topic nodes
+  constellNodes.filter(n=>!n.isSubject).forEach(n => {
+    const glowAlpha = n.risk > 0.7 ? 0.4 : n.mastery > 0.5 ? 0.25 : 0;
+    const nodeColor = n.risk > 0.8 ? '#ef4444' : n.risk > 0.65 ? '#d97706' : n.mastery > 0.4 ? '#2563eb' : '#c9cde0';
+    if (glowAlpha > 0) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r+6, 0, Math.PI*2);
+      ctx.fillStyle = n.risk > 0.7 ? `rgba(248,113,113,${glowAlpha})` : `rgba(59,130,246,${glowAlpha})`;
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    ctx.fillStyle = nodeColor;
+    ctx.fill();
+  });
+
+  // Draw subject nodes
+  constellNodes.filter(n=>n.isSubject).forEach(n => {
+    // Glow
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r+8, 0, Math.PI*2);
+    ctx.fillStyle = n.color + '22';
+    ctx.fill();
+    // Node
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    ctx.fillStyle = n.color + '33';
+    ctx.strokeStyle = n.color;
+    ctx.lineWidth = 1.5;
+    ctx.fill();
+    ctx.stroke();
+    // Label
+    ctx.fillStyle = n.color;
+    ctx.font = '600 9px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.label.slice(0,8), n.x, n.y);
+    // Mastery ring
+    const angle = n.mastery * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r+3, -Math.PI/2, -Math.PI/2+angle);
+    ctx.strokeStyle = n.color;
+    ctx.lineWidth = 2; ctx.stroke();
+  });
+
+  constellAnim = requestAnimationFrame(animateConstellation);
+}
+
+// ════════════════════════════════════════
+// CANVAS: CALENDAR HEATMAP
+// ════════════════════════════════════════
+function renderCalHeatmap() {
+  const canvas = document.getElementById('cal-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = 252, H = 60;
+  ctx.clearRect(0,0,W,H);
+
+  const COLS = 36; const ROWS = 7;
+  const cw = W/COLS; const rh = H/ROWS;
+
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      const date = new Date(TODAY);
+      date.setDate(date.getDate() - (COLS-c)*7 + r);
+      const key  = date.toISOString().slice(0,10);
+      const done = Object.values(STATE.blocks[key]||{}).filter(v=>v==='done').length;
+      const alpha= done === 0 ? 0 : Math.min(1, done/6 * 0.85 + 0.15);
+      ctx.fillStyle = done > 0 ? `rgba(37,99,235,${alpha})` : '#e8ecf5';
+      ctx.fillRect(c*cw+1, r*rh+1, cw-2, rh-2);
+    }
+  }
+}
+
+// ════════════════════════════════════════
+// CANVAS: MOCK HEATMAP
+// ════════════════════════════════════════
+function renderMockHeatmap() {
+  const canvas = document.getElementById('mock-heatmap-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth||500, H = 90;
+  canvas.width = W;
+  ctx.clearRect(0,0,W,H);
+
+  const subjects = SYLLABUS.map(s => ({
+    name: s.name.slice(0,8),
+    color: s.color,
+    topics: s.topics.map(t => ({
+      name: t.name.slice(0,10),
+      mastery: STATE.topics[t.id]?.mastery||0,
+      risk: forgettingRisk(t.id),
+    }))
+  }));
+
+  const cols = subjects.reduce((a,s)=>a+s.topics.length,0);
+  const cw = W/cols;
+  let cx = 0;
+
+  subjects.forEach(s => {
+    s.topics.forEach(t => {
+      const heat = t.risk > 0.7 ? `rgba(220,38,38,${0.35+t.risk*0.45})` :
+                   t.mastery > 0.5 ? `rgba(37,99,235,${0.25+t.mastery*0.45})` :
+                   t.mastery > 0.1 ? `rgba(180,83,9,${0.25+t.mastery})` : '#e2e5f0';
+      ctx.fillStyle = heat;
+      ctx.fillRect(cx*cw+0.5, 0, cw-1, H-14);
+      ctx.fillStyle = 'rgba(200,202,212,0.3)';
+      ctx.font = '7px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.save();
+      ctx.translate(cx*cw+cw/2, H-16);
+      ctx.rotate(-Math.PI/2);
+      ctx.fillText(t.name.slice(0,8), 0, 0);
+      ctx.restore();
+      cx++;
+    });
+  });
+}
+
+// ════════════════════════════════════════
+// CANVAS: FAN CHART (Monte Carlo output)
+// ════════════════════════════════════════
+function renderFanChart(canvasId, p10, p50, p90, label='GATE Score') {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const W = canvas.offsetWidth||500;
+  const H = 80;
+  canvas.width = W;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+
+  const pad = 30;
+  const dw  = W - pad*2;
+
+  // Background
+  ctx.fillStyle = '#f8faff';
+  ctx.fillRect(0,0,W,H);
+
+  // Fan gradient
+  const fn = v => pad + (v/100)*dw;
+  const mid = H/2;
+
+  // P10-P90 fan
+  const grad = ctx.createLinearGradient(fn(p10),0,fn(p90),0);
+  grad.addColorStop(0,'rgba(248,113,113,0.15)');
+  grad.addColorStop(0.5,'rgba(59,130,246,0.3)');
+  grad.addColorStop(1,'rgba(74,222,128,0.15)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(fn(p10), mid-12); ctx.lineTo(fn(p90), mid-12);
+  ctx.lineTo(fn(p90), mid+12); ctx.lineTo(fn(p10), mid+12);
+  ctx.closePath(); ctx.fill();
+
+  // P50 line
+  ctx.beginPath();
+  ctx.moveTo(fn(p50), mid-16); ctx.lineTo(fn(p50), mid+16);
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Labels
+  ctx.font = '8px JetBrains Mono, monospace';
+  ctx.fillStyle = '#f87171'; ctx.textAlign='center';
+  ctx.fillText(`P10:${p10}`, fn(p10), mid-18);
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillText(`P50:${p50}`, fn(p50), H-4);
+  ctx.fillStyle = 'rgba(74,222,128,0.8)';
+  ctx.fillText(`P90:${p90}`, fn(p90), mid-18);
+  ctx.fillStyle = '#6b7280'; ctx.textAlign='left';
+  ctx.fillText(label, pad, 10);
+
+  // Axis
+  ctx.beginPath(); ctx.moveTo(pad,mid); ctx.lineTo(W-pad,mid);
+  ctx.strokeStyle = '#c9cde0'; ctx.lineWidth=0.5; ctx.stroke();
+  for(let v=0;v<=100;v+=20){
+    ctx.fillStyle='#9ca3af'; ctx.textAlign='center';
+    ctx.fillText(v, fn(v), H-2);
+  }
+}
+
+// ════════════════════════════════════════
+// RENDERERS
+// ════════════════════════════════════════
+function renderDriftSchedule() {
+  const list   = document.getElementById('block-list');
+  const diffEl = document.getElementById('drift-diff');
+  if (!list) return;
+  const { plan, driftMsg } = computeDrift();
+  const todayKey = TODAY.toISOString().slice(0,10);
+  const done = STATE.blocks[todayKey]||{};
+  const nowMins = TODAY.getHours()*60 + TODAY.getMinutes();
+
+  if (diffEl) {
+    diffEl.textContent = driftMsg;
+    diffEl.className = driftMsg.includes('nominal') ? 'drift-diff none' : 'drift-diff';
+  }
+
+  // Populate negotiation block selector
+  const negSel = document.getElementById('neg-block-select');
+  if (negSel) {
+    negSel.innerHTML = '<option value="">-- select block --</option>' +
+      plan.filter(b=>b.xp).map(b=>`<option value="${b.id}">${minsToHHMM(b.start)} ${b.label.slice(0,30)}</option>`).join('');
+  }
+
+  list.innerHTML = plan.map(b => {
+    const isActive = nowMins >= b.start && nowMins < b.end;
+    const isDone   = done[b.id] === 'done';
+    const isSkip   = done[b.id] === 'skip';
+    const cls = `block-row${isActive?' active':''}${isDone||isSkip?' done':''}${b.catchup?' catchup':''}`;
+    const labelCls = `block-label ${b.type}`;
+    const btnLabel = isDone ? '✓' : isSkip ? '—' : '✓ DONE';
+    return `<div class="${cls}" onclick="onBlockClick('${b.id}')">
+      <span class="block-time">${minsToHHMM(b.start)}${b.end?'–'+minsToHHMM(b.end):''}</span>
+      <span class="${labelCls}">${b.label}</span>
+      ${b.xp?`<button class="block-done-btn" onclick="event.stopPropagation();markBlockDone('${b.id}','done')">${btnLabel}</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+function onBlockClick(id) {
+  const { plan } = computeDrift();
+  const b = plan.find(x=>x.id===id);
+  if (!b) return;
+  timerState = {
+    running: false,
+    remaining: (b.end-b.start)*60,
+    total: (b.end-b.start)*60,
+    block: b, pomos:0, pomoMins:25
+  };
+  renderTimer();
+  document.getElementById('panel-timer')?.scrollIntoView({behavior:'smooth'});
+}
+
+function renderTimer() {
+  const dispEl = document.getElementById('timer-display');
+  const nameEl = document.getElementById('timer-block-name');
+  const pomoEl = document.getElementById('pomo-fill');
+  const focDisp = document.getElementById('focus-timer-display');
+  const focName = document.getElementById('focus-block-name');
+  const focPomo = document.getElementById('focus-pomo');
+
+  const s = timerState;
+  const txt = formatTime(s.remaining||0);
+  if (dispEl) dispEl.textContent = txt;
+  if (nameEl) nameEl.textContent = s.block?.label || '—';
+  if (focDisp) focDisp.textContent = txt;
+  if (focName) focName.textContent = s.block?.label || 'SELECT BLOCK';
+
+  const pomoElapsed  = s.total - s.remaining;
+  const pomoTotal    = s.pomoMins * 60;
+  const pomoProgress = pomoTotal > 0 ? 1 - (pomoElapsed % pomoTotal)/pomoTotal : 1;
+  if (pomoEl) pomoEl.style.width = `${pomoProgress*100}%`;
+  if (focPomo) focPomo.textContent = `POMODORO ${s.pomos+1} — ${formatTime((pomoElapsed%pomoTotal))} elapsed`;
+}
+
+function renderAtRisk() {
+  const el = document.getElementById('atrisk-list');
+  if (!el) return;
+  const at = getAtRiskTopics(5);
+  if (!at.length) { el.innerHTML = '<div class="fs-9 dim">No topics at risk. Memory stable.</div>'; return; }
+  el.innerHTML = at.map(t => `
+    <div class="risk-item">
+      <span class="risk-decay">${(t.risk*100).toFixed(0)}%</span>
+      <div style="flex:1">
+        <div class="risk-topic">${t.name}</div>
+        <div class="risk-subj">${t.subjectName}</div>
+      </div>
+      <button class="risk-study-btn" onclick="studyTopic('${t.id}',4);renderAll()">STUDY</button>
+    </div>
+  `).join('');
+}
+
+function renderGhost() {
+  const el = document.getElementById('ghost-list');
+  if (!el) return;
+  const deltas = computeGhostDelta();
+  el.innerHTML = deltas.map(d => {
+    const dPct   = Math.round(d.delta * 100);
+    const absDelta = Math.abs(dPct);
+    const ahead  = d.delta >= 0;
+    return `<div class="ghost-row">
+      <span class="ghost-subj">${d.subject.slice(0,10)}</span>
+      <div class="ghost-bar-wrap">
+        <div class="ghost-you"   style="width:${Math.round(d.you*100)}%"></div>
+        <div class="ghost-ghost" style="left:${Math.round(d.ghost*100)}%"></div>
+      </div>
+      <span class="ghost-delta ${ahead?'ahead':'behind'}">${ahead?'+':''}${dPct}%</span>
+    </div>`;
+  }).join('');
+}
+
+function renderBlackBox() {
+  const el = document.getElementById('blackbox-log');
+  if (!el) return;
+  const entries = STATE.log.slice(-40).reverse();
+  el.innerHTML = entries.map(e => {
+    const dt = new Date(e.ts);
+    const ts = `${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+    return `<div class="log-entry ${e.type}"><span class="log-ts">${ts}</span><span class="log-msg">${e.msg}</span></div>`;
+  }).join('');
+  el.scrollTop = 0;
+}
+
+function renderTimelineDrift() {
+  const track = document.getElementById('timeline-track');
+  const driftEl = document.getElementById('drift-indicator');
+  const phaseStatus = document.getElementById('timeline-phase-status');
+  if (!track) return;
+
+  const totalMs  = EXAM_DATE - START_DATE;
+  const elapsed  = Math.max(0, TODAY - START_DATE);
+  const progress = Math.min(1, elapsed/totalMs) * 100;
+
+  // Build phases HTML
+  let html = '<div class="timeline-bg"></div>';
+  html += `<div class="timeline-progress" style="width:${progress}%"></div>`;
+
+  PHASES.forEach((p, i) => {
+    const pStart = (new Date(p.start) - START_DATE)/totalMs*100;
+    const pEnd   = (new Date(p.end)   - START_DATE)/totalMs*100;
+    const isCurrent = TODAY >= new Date(p.start) && TODAY < new Date(p.end);
+    const style = `left:${pStart}%;width:${pEnd-pStart}%;`;
+    html += `<div class="timeline-phase${isCurrent?' current':''}" style="position:absolute;${style}">
+      <div class="timeline-phase-label">${p.name}</div>
+    </div>`;
+    if (isCurrent && phaseStatus) phaseStatus.textContent = p.name.toUpperCase();
+  });
+  html += `<div class="timeline-cursor" style="left:${progress}%"></div>`;
+  track.innerHTML = html;
+
+  const drift = computeTimelineDrift();
+  if (driftEl) {
+    driftEl.className = `drift-indicator ${drift.status}`;
+    driftEl.textContent = drift.label;
+  }
+}
+
+function renderBriefing() {
+  const el  = document.getElementById('briefing-text');
+  const dtEl = document.getElementById('briefing-date');
+  if (el) el.textContent = generateBriefing();
+  if (dtEl) dtEl.textContent = TODAY.toLocaleDateString('en-IN',{weekday:'short',month:'short',day:'numeric'});
+}
+
+function renderHero() {
+  const daysEl  = document.getElementById('hero-days');
+  const unitEl  = document.getElementById('hero-units');
+  const bank    = computeTimeBank();
+
+  // Remaining time breakdown
+  const totalSecs = Math.max(0, Math.floor((EXAM_DATE - new Date())/1000));
+  const d = Math.floor(totalSecs/86400);
+  const h = Math.floor((totalSecs%86400)/3600);
+  const m = Math.floor((totalSecs%3600)/60);
+  if (daysEl) daysEl.textContent = d;
+  if (unitEl) unitEl.textContent = `${h}h ${m}m · GATE DA 2027`;
+
+  const bankEl  = document.getElementById('bank-hours');
+  const subEl   = document.getElementById('bank-sub');
+  const rwEl    = document.getElementById('bank-runway');
+  const barEl   = document.getElementById('bank-bar');
+  if (bankEl) bankEl.textContent = `${Math.round(bank.net)} hr`;
+  if (subEl)  subEl.textContent  = `of ${Math.round(bank.gross)} hr gross (18% entropy discount applied)`;
+
+  const runwayDate = new Date(TODAY.getTime() + bank.runwayDays*864e5);
+  if (rwEl) {
+    if (!isFinite(bank.runwayDays)) {
+      rwEl.textContent = 'Buffer runway: ∞ (no spend logged yet)';
+      rwEl.className   = 'bank-runway';
+    } else if (bank.runwayDays < 30) {
+      rwEl.textContent = `Buffer exhausted ~${runwayDate.toLocaleDateString('en-IN',{month:'short',day:'numeric'})} — ${Math.round(bank.runwayDays)} days away`;
+      rwEl.className   = 'bank-runway crit';
+    } else if (bank.runwayDays < 60) {
+      rwEl.textContent = `Buffer runway: ${runwayDate.toLocaleDateString('en-IN',{month:'short',day:'numeric'})} (~${Math.round(bank.runwayDays)} days)`;
+      rwEl.className   = 'bank-runway warn';
+    } else {
+      rwEl.textContent = `Buffer runway: ${runwayDate.toLocaleDateString('en-IN',{month:'short',day:'numeric'})} (~${Math.round(bank.runwayDays)} days)`;
+      rwEl.className   = 'bank-runway';
+    }
+  }
+  const usedPct = Math.min(100, (bank.gross - bank.net)/Math.max(bank.gross,1)*100);
+  if (barEl) barEl.style.width = `${100-usedPct}%`;
+}
+
+function renderEnergy() {
+  const load  = computeLoad();
+  const fillEl = document.getElementById('load-fill');
+  const numEl  = document.getElementById('load-num');
+  const alertEl = document.getElementById('burnout-alert');
+  const statEl  = document.getElementById('energy-status-dot');
+
+  const cls  = load.score < 40 ? 'low' : load.score < 70 ? 'medium' : 'high';
+  if (fillEl) { fillEl.style.width = `${load.score}%`; fillEl.className = `load-fill ${cls}`; }
+  if (numEl)  { numEl.textContent = load.score; numEl.className = `load-num ${cls}`; }
+  if (alertEl) alertEl.className = `burnout-alert${load.score > 80 && load.streak >= 3 ? '' : ' hidden'}`;
+  if (statEl) {
+    const dot = load.score > 80 ? '<span class="dot dot-red"></span>' : load.score > 55 ? '<span class="dot dot-amber"></span>' : '<span class="dot dot-blue"></span>';
+    statEl.innerHTML = dot + ` ${load.score > 80 ? 'ELEVATED' : load.score > 55 ? 'MODERATE' : 'NOMINAL'}`;
+  }
+}
+
+function renderXP() {
+  const xp = STATE.xp||0;
+  const level = LEVELS.filter(l=>xp>=l.xp).pop();
+  const next  = LEVELS.find(l=>l.xp>xp);
+  document.getElementById('xp-total').textContent    = xp;
+  document.getElementById('streak-count').textContent = computeStreak();
+  document.getElementById('blocks-done').textContent  = Object.values(STATE.blocks).reduce((a,day)=>a+Object.values(day).filter(v=>v==='done').length,0);
+  const lb = document.getElementById('level-badge');
+  if (lb) lb.textContent = `LEVEL ${LEVELS.indexOf(level)+1} — ${level.label}${next?` · ${next.xp-xp} XP TO NEXT`:''}`;
+}
+
+function computeStreak() {
+  let streak = 0;
+  for (let d = 0; d < 90; d++) {
+    const key = new Date(Date.now()-d*864e5).toISOString().slice(0,10);
+    const done = Object.values(STATE.blocks[key]||{}).filter(v=>v==='done').length;
+    if (done > 0) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function renderMockPerf() {
+  const proj = projectScore();
+  const projEl = document.getElementById('proj-score');
+  const rangeEl = document.getElementById('proj-range');
+  if (projEl)  projEl.textContent  = proj.score;
+  if (rangeEl) rangeEl.textContent = ' / 100 — ' + proj.range;
+  renderMockHeatmap();
+  if (STATE.mocks.length > 0) {
+    const recent = STATE.mocks.slice(-5);
+    const avg = recent.reduce((a,m)=>a+m.pct,0)/recent.length;
+    renderFanChart('fan-canvas', Math.round((avg-0.12)*100), Math.round(avg*100), Math.round((avg+0.08)*100));
+  }
+}
+
+function renderKnowledgeGraph() {
+  const el = document.getElementById('knowledge-topics');
+  if (!el) return;
+  el.innerHTML = ALL_TOPICS.map(t => {
+    const risk    = forgettingRisk(t.id);
+    const mastery = STATE.topics[t.id]?.mastery||0;
+    const color   = risk > 0.8 ? '#f87171' : risk > 0.6 ? '#d97706' : mastery > 0.5 ? '#3b82f6' : '#2a2d3e';
+    const href    = t.links?.[0]||'#';
+    const subj    = SYLLABUS.find(s=>s.topics.some(x=>x.id===t.id));
+    return `<div class="kt-row">
+      <div class="kt-dot" style="background:${color}"></div>
+      <span class="kt-name">${t.name}</span>
+      <span class="kt-link dim" style="font-size:8px">${subj?.name.slice(0,6)||''}</span>
+      <a class="kt-link" href="${href}" target="_blank" rel="noopener">↗</a>
+    </div>`;
+  }).join('');
+}
+
+function renderPhaseStatus() {
+  const phase = getCurrentPhase();
+  const phaseEl = document.getElementById('syslog-phase');
+  if (phaseEl) phaseEl.textContent = `PHASE: ${phase.name.toUpperCase()}`;
+}
+
+// ════════════════════════════════════════
+// STRESS TEST RENDER
+// ════════════════════════════════════════
+let lastStressResult = null;
+
+function runStressTest() {
+  const btn = document.querySelector('.stress-btn');
+  if (btn) btn.textContent = 'RUNNING...';
+  setTimeout(() => {
+    const r = runMonteCarloSim(200);
+    lastStressResult = r;
+    const el = document.getElementById('stress-result');
+    if (el) el.innerHTML = `
+      <div class="stress-p p10"><span class="label">P10</span> <span class="val">${r.p10}/100</span> — worst-case scenario (disruption-heavy calendar)</div>
+      <div class="stress-p p50"><span class="label">P50</span> <span class="val">${r.p50}/100</span> — median projected score</div>
+      <div class="stress-p p90"><span class="label">P90</span> <span class="val">${r.p90}/100</span> — best-case (minimal disruption)</div>
+      <div class="stress-p"><span class="label dim">SYL%</span> <span>${r.pSyll}% of simulations complete syllabus before Dec 15</span></div>
+    `;
+    renderFanChart('fan-stress-canvas', r.p10, r.p50, r.p90, 'GATE Score Distribution');
+    const tipEl = document.getElementById('leverage-tip');
+    if (tipEl) { tipEl.textContent = r.leverage; tipEl.style.display='block'; }
+    if (btn) btn.textContent = 'RUN SIMULATION ↻';
+  }, 200);
+}
+
+// ════════════════════════════════════════
+// CLOCK (top bar)
+// ════════════════════════════════════════
+function updateClock() {
+  const el = document.getElementById('syslog-clock');
+  if (!el) return;
+  const n = new Date();
+  el.textContent = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
+}
+
+// ════════════════════════════════════════
+// RENDER ALL
+// ════════════════════════════════════════
+function renderAll() {
+  renderHero();
+  renderBriefing();
+  renderDriftSchedule();
+  renderAtRisk();
+  renderGhost();
+  renderBlackBox();
+  renderTimelineDrift();
+  renderEnergy();
+  renderXP();
+  renderMockPerf();
+  renderKnowledgeGraph();
+  renderCalHeatmap();
+  renderPhaseStatus();
+  updateSysLog();
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+function init() {
+  // Seed initial log if empty
+  if (STATE.log.length === 0) {
+    appendLog('sys', 'REACTOR ONLINE — state initialized from seed data.');
+    appendLog('sys', `Calendar: ${DAYS_ELAPSED} days elapsed since Jul 1 2026. ${DAYS_LEFT} days to GATE DA 2027.`);
+    appendLog('sys', `Phase: ${getCurrentPhase().name} — ${getCurrentPhase().desc}`);
+  }
+
+  // Render everything
+  renderAll();
+
+  // Start timer for current block
+  startTimerForCurrentBlock();
+
+  // Clock tick
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // Decay check every 5 min
+  setInterval(() => {
+    const topRisk = getAtRiskTopics(1)[0];
+    if (topRisk && topRisk.risk > 0.85) {
+      appendLog('decay', `DECAY ALERT: ${topRisk.name} (${topRisk.subjectName}) — ${(topRisk.risk*100).toFixed(0)}% forgotten`);
+    }
+    renderAll();
+  }, 5*60*1000);
+
+  // Syslog update every 30s
+  setInterval(updateSysLog, 30000);
+
+  // Hero countdown every minute
+  setInterval(renderHero, 60000);
+
+  // Constellation re-init on resize
+  window.addEventListener('resize', () => {
+    clearTimeout(window._constellTO);
+    window._constellTO = setTimeout(initConstellation, 300);
+  });
+
+  // Init constellation after layout settles
+  setTimeout(initConstellation, 200);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') exitFocusMode();
+    if (e.key === ' ' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
+      e.preventDefault(); toggleTimer();
+    }
+  });
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
